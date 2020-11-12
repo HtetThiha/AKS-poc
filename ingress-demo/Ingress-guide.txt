@@ -1,0 +1,3 @@
+
+
+- Ingress router is just another container distributed across the worker nodes that the control plane uses to route the traffic. It is not an azure resource that the Azure provide.

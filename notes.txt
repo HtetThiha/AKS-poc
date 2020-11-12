@@ -1,0 +1,176 @@
+linuxAdminUsername - aksadmin
+
+
+az deployment group create \
+  --name AKS-Twistlock-ARM-POC \
+  --resource-group AKS-Twistlock-POC \
+  --template-file deployAKS.json \
+  --parameters osDiskSizeGB=30 linuxAdminUsername=aksadmin sshRSAPublicKey="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC6EhGQNAhodMEZOcvFcxPjKo2zDXlRaT5GY/lDAn0oxuvLc55DBgsWTRawtunOI/2K5Tz2BroHzoVt09d3P7D5JXnYF54DGoVY6QkHYgbmdJnlNMXz+U/yEw2J+6SEHJjIpmzH6en2R9h5g/qsm5X21em7jHyakPAQfsSaQ/RAM2nbQRY+70ag+9zZN3D7KCgRvTToUqrOxPuuf34mL47/ISN1a85Z8UeIO0wZkmZbInF4VqheHRynuhww/Ohf9nzXrGclMhAc9poh9nQUGSsansM2pGBO5N1glr561Wr219EGijyhwKqZBHM2oWCz3FabkDhJCDXUu7EFDbGm93JoWki1n8BpMf5ujUKJtfC4VepUn+5qEe1zK2q9NaiezQuU2CV4b59nQSDRiYaIGXbmHCQ/8VDBE8SlcZa0gC8BgRm1GZ0g95iOHTuJiMMpZ+ULVQv1NLsceMg8VHCdnOQiij/d4bvSrxXVJ4QJ/CBw05Ed9b4htlKil1K1aTmXmDLlSj7lBdcqZFAeCmkSkdQUhxRxyccHNDoI5GonNSQ5liVmb7nudfURk0UmaxEmoDNjNNoMkjncp8uCdCz3P7krVt6ss08XqiPjOH8QN3eE6+EH/Tek3AmwbjbY+IZ4ISZzdlRQNW84ucu9Ne1LxziERyPDtwQT8ZymCcnJFo/oFw== hthiha@azure" servicePrincipalClientId=d0e344fa-a18e-4f9b-b335-b273271b6420 servicePrincipalClientSecret=bzRjc3dYNGU/O09PdXxPWldHdCVuZitwMnA9PVtHMWhvTg== dnsPrefix=Scott-AKS-Twistlock-POC-dns --subscription "US-AZSUB-AME-ENA-USCYBERRND-NPD"
+
+
+azureuser
+
+
+  az aks show --name Scott-AKS-Twistlock-POC --resource-group AKS-Twistlock-POC --subscription "US-AZSUB-AME-ENA-USCYBERRND-NPD"
+
+
+  ssh-keygen \
+>     -m PEM \
+>     -t rsa \
+>     -b 4096 \
+>     -C "hthiha@azure" \
+>     -f ~/.ssh/mykeys/AKSkey \
+>     -N D3loitte01!
+
+
+az deployment group delete --name AKS-Twistlock-ARM-POC --resource-group AKS-Twistlock-POC --subscription "US-AZSUB-AME-ENA-USCYBERRND-NPD"
+
+
+az aks get-credentials --resource-group AKS-Twistlock-POC --name Htet-AKS-Twistlock-POC-private --subscription "US-AZSUB-AME-ENA-USCYBERRND-NPD"
+
+Guide on how to deploy to Azure using ARM template
+https://docs.microsoft.com/en-us/azure/aks/kubernetes-walkthrough-rm-template
+
+Guide on how to deploy the ARM template from CLI
+https://docs.microsoft.com/en-us/azure/azure-resource-manager/templates/deploy-cli
+
+Guide on how to set up ingress router in AKS
+https://docs.microsoft.com/en-us/azure/aks/ingress-basic
+
+
+https://istio.io/latest/docs/ops/deployment/deployment-models/
+
+Service Mesh
+
+Single or multiple clsuter
+- a single cluster + single network model - it won't offer fault isolation, fail over and HA. 
+- multiple clusters - offer fault isolation and fail over, team/project isolation
+	- if your two clusters reside on the same underlying network, you can enable cross-cluster communication by simply configuring firewall rules.
+
+Single or multple network
+- in a single network, all workloads can reach each other directly without an ISTIO gateway.
+- multi-network offers overlapping IP or VIP, crossing of administrative boundaries, compliance with standards that require network segmentation. They can only reach to each other through one or more Istio geateways. Istio uses partitioned service discovery.
+
+Control planes
+- primary cluster - a single cluster with a local control plane
+- remote clusters - when multi cluster deployments share control plane instances, where a control plane may reside in one or more primary clusters. Clusters without their own control plane are referred as remote clusters.
+- external control plane - when the control palne do no reside in the ISTIO mesh or any of the clusters. It provide isolated management and complete separation of control plane from data plane that comprises the mesh. A cloud vendor's managed control plane is an example.
+
+Single mesh vs multiple mesh
+Single mesh model - service names are unique. workload instances share a common identity. A single mesh can span one or more clusters, one or more networks. Namespaces are used within a mesh for tenancy.
+
+Multiple mesh model - afford organizational boundaries, service name or namespace reuse, stronger isolations (e.g. test workloads from prod workloads). you have use mesh federation. Each mesh expose a set of services and identities all participating mesh can recognize. If two mesh doesn't share same trust domain, you must also federate identity and trust bundles between them. 
+
+
+Kubenet VS Azure Container Networking Interface (CNI)
+Kubenet
+- Default AKS uses kubenet, and create Azure Virtual Network and subnets for you.
+- Nodes get IP address from AVN.
+- Pods get Ip address from logically different address space to the AVN subnet of the nodes.
+- NAT is configured so that pods can reach resources on AVN.
+- Source IP is the node's Primary IP address.
+
+CNI
+- every pod gets an IP address from the subnet and can be accessed directly.
+- IP addresses must be unique
+- each node has configuration for multiple number of pods it can support
+- equal number of IP addresses per node are reserved for that node.
+- (IP exhaustion and need to rebuild clusters as demand grows)
+
+
+Kubenet Setup
+- only nodes receive IP address, and PODs can't communicate directly with each other.
+	- needs User Defined Routing (UDR) and IP forwarding for connectivity between pods across nodes.
+	- UDR and IP forwarding configs ae created and maintained by AKAS service) but you can also byo.
+	- can also deploy pods behind a service that receives an assigned IP address.
+	- AKS virtual nodes and Azure Network Policies aren't supported in kubenet. (Use Calico Network Policies)
+		- Network policies provides micro-segmentation for pods like NSG provides micro-segmentation for VMs
+		- NPM (azure network policy manager) implements supports for network policy specifications.
+		- You can use lablels to select a group of pods and define a list of ingress and egress rules to filter traffic.
+
+https://docs.microsoft.com/en-us/azure/aks/configure-kubenet
+
+az network vnet create \
+    --resource-group myResourceGroup \
+    --name myAKSVnet \
+    --address-prefixes 192.168.0.0/16 \
+    --subnet-name myAKSSubnet \
+    --subnet-prefix 192.168.1.0/24
+
+
+az aks create \
+    --resource-group myResourceGroup \
+    --name myAKSCluster \
+    --node-count 3 \
+    --network-plugin kubenet \
+    --service-cidr 10.0.0.0/16 \
+    --dns-service-ip 10.0.0.10 \
+    --pod-cidr 10.244.0.0/16 \
+    --docker-bridge-address 172.17.0.1/16 \
+    --vnet-subnet-id $SUBNET_ID \
+    --service-principal <appId> \
+    --client-secret <password>
+
+
+In Kubernetes, Services logically group pods to allow for direct access via an IP address or DNS name and on a specific port.
+When you create an AKS cluster, a network security group and route table are automatically created. These network resources are managed by the AKS control plane. The network security group is automatically associated with the virtual NICs on your nodes. The route table is automatically associated with the virtual network subnet. Network security group rules and route tables are automatically updated as you create and expose services.
+
+https://docs.microsoft.com/en-us/azure/virtual-network/kubernetes-network-policies
+
+
+
+
+AGIC - application gateway Ingress Controller		
+
+https://kubernetes.io/docs/concepts/services-networking/network-policies/
+If you want to control traffic flow at the IP address or port level (OSI layer 3 or 4), then you might consider using Kubernetes NetworkPolicies for particular applications in your cluster. 
+
+
+Layer 7 technologies (Ingress controllers, Service Mesh implementations) 
+
+
+
+API server address
+scott-aks-twistlock-poc-dns-cb30e43d.hcp.eastus.azmk8s.io
+Network type (plugin)
+Kubenet
+Private cluster
+Not enabled
+Pod CIDR
+10.244.0.0/16
+Service CIDR
+10.0.0.0/16
+DNS service IP
+10.0.0.10
+Docker bridge CIDR
+172.17.0.1/16
+HTTP application routing
+Not enabled
+
+
+az aks create \
+    --resource-group AKS-Twistlock-POC \
+    --name Scott-AKS-Twistlock-POC-private \
+    --load-balancer-sku standard \
+    --enable-private-cluster \
+    --network-plugin azure \
+    --vnet-subnet-id aks-vnet-64568279 \
+    --docker-bridge-address 172.17.0.1/16 \
+    --dns-service-ip 10.0.0.10 \
+    --service-cidr 10.2.0.0/24 
+
+
+az aks create -n Htet-AKS-Twistlock-POC-private -g AKS-Twistlock-POC --load-balancer-sku standard --enable-private-cluster --vnet-subnet-id aks-vnet-64568279 --resource-group Htet-AKS-Twistlock-POC --subscription "US-AZSUB-AME-ENA-USCYBERRND-NPD"
+
+
+
+az vm create \
+  --resource-group MC_AKS-Twistlock-POC_Htet-AKS-Twistlock-POC-private_eastus \
+  --name kubectlvm \
+  --image UbuntuLTS \
+  --admin-username azureuser \
+  --sshRSAPublicKey?
+  --vnet-name aks-vnet-64568279
+  --subnet aks-subnet
+  --generate-ssh-keys \
+  --subscription "US-AZSUB-AME-ENA-USCYBERRND-NPD"
